@@ -29,7 +29,7 @@ export default function SentimentCloud({ rows, onDrill }) {
     if (!host.current) return undefined
     const ro = new ResizeObserver(([e]) => {
       const { width } = e.contentRect
-      setSize({ w: Math.max(320, width), h: width < 640 ? 420 : 340 })
+      setSize({ w: Math.max(320, width), h: width < 640 ? 360 : 270 })
     })
     ro.observe(host.current)
     return () => ro.disconnect()
@@ -40,15 +40,26 @@ export default function SentimentCloud({ rows, onDrill }) {
 
   const words = useMemo(() => {
     const lanes = focus === 'all' ? LANES : LANES.filter((l) => l.key === focus)
+    // Fewer words, chosen well: a cloud stops communicating once it becomes a
+    // wall. Top words per lane only.
+    const perLane = focus === 'all' ? 9 : 20
     const all = lanes.flatMap((l) =>
-      wordCloud(rows, l.key, focus === 'all' ? 26 : 44).map((w) => ({ ...w, sentiment: l.key, seg: l.seg })),
+      wordCloud(rows, l.key, perLane).map((w) => ({ ...w, sentiment: l.key, seg: l.seg })),
     )
     const max = Math.max(1, ...all.map((w) => w.value))
     return all.map((w) => ({ ...w, weight: w.value / max }))
   }, [rows, focus])
 
   const placed = useMemo(
-    () => layoutCloud(words, { width: size.w, height: size.h, minSize: 13, maxSize: size.w < 640 ? 34 : 48 }),
+    () => layoutCloud(words, {
+      width: size.w,
+      height: size.h,
+      minSize: 14,
+      maxSize: size.w < 640 ? 28 : 38,   // a gentler range reads calmer
+      padding: 12,
+      rotate: false,
+      centred: true,
+    }),
     [words, size],
   )
 
@@ -69,7 +80,7 @@ export default function SentimentCloud({ rows, onDrill }) {
         <div>
           <p className="card-title">Voice of Customer — Sentiment Analyser</p>
           <p className="card-sub">
-            Every word customers wrote, sized by how often · click any word to read those responses
+            The words customers used most, sized by how often · click any word to read those responses
           </p>
         </div>
         <div className="flex items-center gap-0.5 rounded-full bg-surface-page p-1">
@@ -146,8 +157,7 @@ export default function SentimentCloud({ rows, onDrill }) {
                   key={`${w.sentiment}-${w.text}`}
                   x={w.x}
                   y={w.y}
-                  transform={w.rotate ? `rotate(-90 ${w.x} ${w.y})` : undefined}
-                  textAnchor={w.rotate ? 'start' : 'start'}
+                  textAnchor={w.anchor}
                   onMouseEnter={() => setHover(w)}
                   onMouseLeave={() => setHover(null)}
                   onClick={() => onDrill?.(w)}
@@ -155,7 +165,7 @@ export default function SentimentCloud({ rows, onDrill }) {
                     fontSize: w.size,
                     fontWeight: w.fontWeight,
                     fill: SEGMENT[w.seg],
-                    opacity: hover && !active ? 0.32 : 0.55 + w.weight * 0.45,
+                    opacity: hover && !active ? 0.28 : 0.7 + w.weight * 0.3,
                     cursor: 'pointer',
                     transition: 'opacity 140ms ease',
                   }}

@@ -24,7 +24,8 @@ const overlaps = (a, b) =>
  * @param words  [{ text, value, weight 0..1, sentiment }] — any order
  * @returns      the same words with x/y/size/rotate, minus any that would not fit
  */
-export function layoutCloud(words, { width, height, minSize = 12, maxSize = 46, padding = 5 } = {}) {
+export function layoutCloud(words, { width, height, minSize = 12, maxSize = 46, padding = 5, rotate = true, centred = false } = {}) {
+  const rotateOn = rotate
   const placed = []
   const cx = width / 2
   const cy = height / 2
@@ -32,9 +33,9 @@ export function layoutCloud(words, { width, height, minSize = 12, maxSize = 46, 
   for (const w of [...words].sort((a, b) => b.value - a.value)) {
     const size = Math.round(minSize + (maxSize - minSize) * w.weight ** 0.72)
     const weight = w.weight > 0.6 ? 800 : w.weight > 0.32 ? 700 : 600
-    // Rotate a minority a quarter turn — it is what stops a cloud reading as a
-    // paragraph — but never the largest words, which must stay instantly legible.
-    const rotate = w.weight < 0.45 && placed.length % 3 === 1 ? -90 : 0
+    // Rotation adds texture but also noise. Off by default now: upright words
+    // are quicker to read and the cloud looks calmer.
+    const rotate = rotateOn && w.weight < 0.45 && placed.length % 3 === 1 ? -90 : 0
     const tw = measure(w.text, size, weight)
     const box = rotate
       ? { w: size * 1.12 + padding, h: tw + padding }
@@ -63,8 +64,9 @@ export function layoutCloud(words, { width, height, minSize = 12, maxSize = 46, 
       rotate,
       box: found,
       // SVG text anchors on the baseline, so nudge to the box's optical centre.
-      x: rotate ? found.x + box.w / 2 : found.x,
+      x: rotate ? found.x + box.w / 2 : centred ? found.x + box.w / 2 : found.x,
       y: rotate ? found.y + box.h : found.y + size * 0.86,
+      anchor: rotate ? 'start' : centred ? 'middle' : 'start',
     })
   }
   return placed
