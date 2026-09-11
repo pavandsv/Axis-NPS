@@ -192,7 +192,18 @@ export default function App() {
           </>
         )}
 
-        {tab === 'odd' && <OnDemandDashboard rows={rows} />}
+        {tab === 'odd' && (
+          <OnDemandDashboard
+            rows={rows}
+            onDrill={(key, value) =>
+              openDrill(
+                key === 'journey' ? journeyLabel(value) : value,
+                `Grouped by ${key} · ${scopeLine}`,
+                (r) => String(r[key] ?? '—') === value,
+              )
+            }
+          />
+        )}
 
         {tab === 'ai' && (
           <AiInsights

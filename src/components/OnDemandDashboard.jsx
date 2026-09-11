@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { journeyLabel } from '../data/config'
-import { SEGMENT } from '../theme/palette'
+import { SEGMENT, npsColor, CATEGORICAL } from '../theme/palette'
+import { GROUPABLE, facets, groupBy, npsOf, distribution, loanDistribution } from '../logic/analytics'
+import { LoanDistribution } from './Panels'
 
 const COLUMNS = [
   { key: 'responseId', label: 'Response ID', hint: 'Unique per submitted survey' },
@@ -37,7 +39,32 @@ const PAGE = 25
  * and in the definitions panel, plus search, sort and CSV export. Nothing is
  * hidden behind an aggregate here — this is the table the aggregates come from.
  */
-export default function OnDemandDashboard({ rows }) {
+const FILTERS = [
+  ['journey', 'Journey'],
+  ['state', 'State'],
+  ['loanType', 'Loan type'],
+  ['portfolio', 'Portfolio'],
+  ['channel', 'Channel'],
+  ['segment', 'Segment'],
+]
+
+export default function OnDemandDashboard({ rows: allRows, onDrill }) {
+  const [filters, setFilters] = useState({})
+  const [groupKey, setGroupKey] = useState('journey')
+
+  // Filters compose: each one narrows what the next sees, and every panel below
+  // reads the same narrowed set.
+  const rows = useMemo(
+    () => allRows.filter((r) => Object.entries(filters).every(([k, v]) => !v || String(r[k]) === v)),
+    [allRows, filters],
+  )
+  const options = useMemo(() => facets(allRows), [allRows])
+  const grouped = useMemo(() => groupBy(rows, groupKey), [rows, groupKey])
+  const dist = useMemo(() => distribution(rows), [rows])
+  const setFilter = (k, v) => setFilters((f) => ({ ...f, [k]: v || undefined }))
+  const clearAll = () => setFilters({})
+  const activeCount = Object.values(filters).filter(Boolean).length
+
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState({ key: 'responseId', dir: 'asc' })
   const [page, setPage] = useState(1)
@@ -75,6 +102,132 @@ export default function OnDemandDashboard({ rows }) {
 
   return (
     <div className="space-y-4">
+      {/* ---- filters ------------------------------------------------------ */}
+      <div className="card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="card-title">Explore the data</p>
+            <p className="card-sub">
+              Filter, group and drill — every figure on the dashboard can be reproduced here
+            </p>
+          </div>
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="rounded-full border border-surface-line px-3 py-1.5 text-[11px] font-semibold text-ink-muted hover:text-brand"
+            >
+              Clear {activeCount} filter{activeCount === 1 ? '' : 's'}
+            </button>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+          {FILTERS.map(([key, label]) => (
+            <label key={key} className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-ink-faint">{label}</span>
+              <select
+                value={filters[key] || ''}
+                onChange={(e) => setFilter(key, e.target.value)}
+                className="h-9 w-full rounded-xl border border-surface-line bg-white px-2.5 text-[12px] text-ink-soft outline-none focus:border-brand"
+              >
+                <option value="">All</option>
+                {options[key].map((v) => (
+                  <option key={v} value={v}>{key === 'journey' ? journeyLabel(v) : v}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: 'Responses', value: rows.length.toLocaleString('en-IN') },
+            { label: 'NPS', value: npsOf(rows) >= 0 ? `+${npsOf(rows)}` : npsOf(rows), color: npsColor(npsOf(rows)) },
+            { label: 'Promoters', value: `${dist.promoters}%`, color: SEGMENT.promoter },
+            { label: 'Detractors', value: `${dist.detractors}%`, color: SEGMENT.detractor },
+          ].map((m) => (
+            <div key={m.label} className="rounded-xl bg-surface-alt px-3.5 py-3">
+              <p className="text-xl font-bold leading-none" style={{ color: m.color || '#1D1D1F' }}>{m.value}</p>
+              <p className="mt-1 text-[11px] text-ink-faint">{m.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ---- group-by explorer -------------------------------------------- */}
+      <div className="card overflow-hidden">
+        <div className="flex flex-wrap items-start justify-between gap-3 p-5 pb-3">
+          <div>
+            <p className="card-title">Break it down</p>
+            <p className="card-sub">Group the current selection by any dimension · click a row to read those responses</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {GROUPABLE.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                onClick={() => setGroupKey(g.key)}
+                aria-pressed={groupKey === g.key}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                  groupKey === g.key ? 'bg-brand text-white' : 'border border-surface-line text-ink-muted hover:text-brand'
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 bg-surface-alt">
+              <tr className="border-y border-surface-line">
+                {[GROUPABLE.find((g) => g.key === groupKey)?.label, 'Responses', 'Share', 'Mix', 'Avg rating', 'NPS'].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-ink-faint">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map((g) => (
+                <tr
+                  key={g.value}
+                  onClick={() => onDrill?.(groupKey, g.value)}
+                  className="cursor-pointer border-b border-surface-line/60 transition-colors hover:bg-surface-alt"
+                >
+                  <td className="whitespace-nowrap px-5 py-2.5 text-[12px] font-semibold text-ink">
+                    {groupKey === 'journey' ? journeyLabel(g.value) : g.value}
+                  </td>
+                  <td className="px-5 py-2.5 text-[12px] text-ink-muted">{g.responses.toLocaleString('en-IN')}</td>
+                  <td className="px-5 py-2.5">
+                    <span className="flex items-center gap-2">
+                      <span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface-page">
+                        <span className="block h-full rounded-full" style={{ width: `${g.pct}%`, background: CATEGORICAL[0] }} />
+                      </span>
+                      <span className="text-[11px] text-ink-faint">{g.pct}%</span>
+                    </span>
+                  </td>
+                  <td className="px-5 py-2.5">
+                    <span className="flex h-1.5 w-28 overflow-hidden rounded-full" title={`${g.promoters} / ${g.passives} / ${g.detractors}`}>
+                      <span style={{ width: `${(g.promoters / g.responses) * 100}%`, background: SEGMENT.promoter }} />
+                      <span style={{ width: `${(g.passives / g.responses) * 100}%`, background: SEGMENT.passive }} />
+                      <span style={{ width: `${(g.detractors / g.responses) * 100}%`, background: SEGMENT.detractor }} />
+                    </span>
+                  </td>
+                  <td className="px-5 py-2.5 text-[12px] text-ink-muted">{g.avgRating}</td>
+                  <td className="px-5 py-2.5 text-[12px] font-bold" style={{ color: npsColor(g.nps) }}>
+                    {g.nps >= 0 ? `+${g.nps}` : g.nps}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MOM 6.11 — the progression table lives here so users can play with it */}
+      <LoanDistribution stages={loanDistribution(rows)} />
+
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -243,3 +243,67 @@ export function botCallQueue(rows, limit = 12) {
       language: i % 3 === 0 ? 'Hindi' : 'English',   // MOM 3.5
     }))
 }
+
+/**
+ * MOM 6.12 — the On-Demand Dashboard must let users explore, not just read.
+ *
+ * Group any dimension and get count, share and NPS for each value. This is the
+ * pivot behind the explorer: every aggregate on the main dashboard is one of
+ * these group-bys, so a user can reproduce — and go beyond — anything they were
+ * shown.
+ */
+export const GROUPABLE = [
+  { key: 'journey', label: 'Journey' },
+  { key: 'state', label: 'State' },
+  { key: 'city', label: 'City' },
+  { key: 'loanType', label: 'Loan type' },
+  { key: 'portfolio', label: 'Portfolio' },
+  { key: 'channel', label: 'Channel' },
+  { key: 'segment', label: 'Segment' },
+  { key: 'theme', label: 'AI theme' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'ageBracket', label: 'Age bracket' },
+  { key: 'month', label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'rating', label: 'Rating' },
+]
+
+export function groupBy(rows, key) {
+  const buckets = new Map()
+  for (const r of rows) {
+    const v = r[key] ?? '—'
+    if (!buckets.has(v)) buckets.set(v, [])
+    buckets.get(v).push(r)
+  }
+  return [...buckets.entries()]
+    .map(([value, slice]) => {
+      const p = slice.filter((x) => x.segment === 'promoter').length
+      const d = slice.filter((x) => x.segment === 'detractor').length
+      return {
+        value: String(value),
+        responses: slice.length,
+        pct: share(slice.length, rows.length),
+        nps: npsOf(slice),
+        promoters: p,
+        passives: slice.length - p - d,
+        detractors: d,
+        withComment: slice.filter((x) => x.improvement).length,
+        avgRating: +(slice.reduce((a, x) => a + x.rating, 0) / slice.length).toFixed(1),
+      }
+    })
+    .sort((a, b) => b.responses - a.responses)
+}
+
+/** Distinct values for each filterable field, for the explorer's controls. */
+export function facets(rows) {
+  const of = (k) => [...new Set(rows.map((r) => r[k]).filter(Boolean))].sort()
+  return {
+    journey: of('journey'),
+    state: of('state'),
+    loanType: of('loanType'),
+    portfolio: of('portfolio'),
+    channel: of('channel'),
+    segment: ['promoter', 'passive', 'detractor'],
+    theme: of('theme'),
+  }
+}
