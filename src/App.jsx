@@ -105,7 +105,19 @@ export default function App() {
                 dist={dist}
                 onDrill={(seg, label) => openDrill(label, `Rating band · ${scopeLine}`, (r) => r.segment === seg)}
               />
-              <JourneyScores scores={scores} journey={journey} onJourney={setJourney} trend={trend} />
+              <JourneyScores
+                scores={scores}
+                journey={journey}
+                onJourney={setJourney}
+                trend={trend}
+                onDrillPeriod={(label) =>
+                  openDrill(
+                    label,
+                    `${period === 'monthly' ? 'Month' : period === 'quarterly' ? 'Quarter' : 'Year'} · ${journey === 'all' ? 'all journeys' : journeyLabel(journey)}`,
+                    (r) => String(period === 'monthly' ? r.month : period === 'quarterly' ? r.quarter : r.year) === label,
+                  )
+                }
+              />
             </div>
 
             <SentimentCloud

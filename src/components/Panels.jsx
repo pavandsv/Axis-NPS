@@ -17,11 +17,24 @@ export function NpsDistribution({ dist, onDrill }) {
       <Chart
         type="doughnut"
         height={160}
+        onSelect={(i) => onDrill?.(parts[i].seg, parts[i].label)}
         data={{
           labels: parts.map((p) => p.label),
           datasets: [{ data: parts.map((p) => p.value), backgroundColor: parts.map((p) => p.color), borderWidth: 0, cutout: '68%' }],
         }}
-        options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                // "54" alone is ambiguous — say what it is and how many people.
+                label: (c) => `${c.parsed}% · ${parts[c.dataIndex].count.toLocaleString('en-IN')} responses`,
+              },
+            },
+          },
+        }}
       />
       <p className="mt-3 text-center text-[10px] font-medium text-brand">✣ Click a segment to read those responses</p>
       <div className="mt-2 grid grid-cols-3 text-center">
@@ -43,7 +56,7 @@ export function NpsDistribution({ dist, onDrill }) {
 }
 
 /** MOM 6.3 — a card per journey, each carrying its own NPS. */
-export function JourneyScores({ scores, journey, onJourney, trend }) {
+export function JourneyScores({ scores, journey, onJourney, trend, onDrillPeriod }) {
   return (
     <div className="card p-5 lg:col-span-2">
       <p className="card-title">Journey NPS Scores</p>
@@ -73,6 +86,7 @@ export function JourneyScores({ scores, journey, onJourney, trend }) {
         <Chart
           type="line"
           height={120}
+          onSelect={(i) => onDrillPeriod?.(trend[i].label)}
           data={{
             labels: trend.map((t) => t.label),
             datasets: [{
@@ -85,7 +99,10 @@ export function JourneyScores({ scores, journey, onJourney, trend }) {
           }}
           options={{
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (c) => `NPS ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y} · ${trend[c.dataIndex].responses} responses` } },
+            },
             scales: {
               x: { grid: { display: false }, ticks: { font: { size: 10 }, color: CHROME.axis } },
               y: { grid: { color: CHROME.grid }, ticks: { font: { size: 10 }, color: CHROME.axis } },
@@ -183,6 +200,7 @@ export function PortfolioPerformance({ rows, onDrill }) {
       <Chart
         type="bar"
         height={180}
+        onSelect={(i) => onDrill?.(rows[i].label)}
         data={{
           labels: rows.map((r) => r.label),
           datasets: [{
@@ -193,7 +211,10 @@ export function PortfolioPerformance({ rows, onDrill }) {
         }}
         options={{
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => `NPS ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y} · ${rows[c.dataIndex].responses} responses` } },
+          },
           scales: {
             x: { grid: { display: false }, ticks: { font: { size: 10 }, color: CHROME.axis } },
             y: { grid: { color: CHROME.grid }, ticks: { font: { size: 10 }, color: CHROME.axis } },

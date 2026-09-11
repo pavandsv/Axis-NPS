@@ -17,13 +17,30 @@ ChartJS.register(
  * once and destroyed on unmount — re-creating it on every render leaks canvases
  * and throws "Canvas is already in use".
  */
-export default function Chart({ type, data, options, height = 200 }) {
+export default function Chart({ type, data, options, height = 200, onSelect }) {
   const canvas = useRef(null)
   const chart = useRef(null)
 
   useEffect(() => {
     if (!canvas.current) return undefined
-    chart.current = new ChartJS(canvas.current, { type, data, options })
+    chart.current = new ChartJS(canvas.current, {
+      type,
+      data,
+      options: {
+        ...options,
+        // Clicking the drawn element itself, not just a legend or a label
+        // beneath it — an arc that shows a tooltip but ignores a click reads
+        // as broken.
+        onClick: (evt, els, chart) => {
+          if (!onSelect || !els.length) return
+          const { index } = els[0]
+          onSelect(index, chart.data.labels?.[index])
+        },
+        onHover: onSelect
+          ? (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer' : 'default' }
+          : options?.onHover,
+      },
+    })
 
     // Chart.js lays out once, against whatever the canvas measured at creation.
     // Inside a CSS grid that is often before the cell has its final width, which
@@ -38,7 +55,7 @@ export default function Chart({ type, data, options, height = 200 }) {
       chart.current?.destroy()
       chart.current = null
     }
-  }, [type, JSON.stringify(data), JSON.stringify(options)])
+  }, [type, JSON.stringify(data), JSON.stringify(options), onSelect])
 
   // Chart.js measures the canvas's PARENT. Without an explicit width and
   // position the parent can be zero-wide on first paint inside a grid cell,
