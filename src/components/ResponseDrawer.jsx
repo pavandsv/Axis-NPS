@@ -39,7 +39,7 @@ export default function ResponseDrawer({ title, subtitle, rows, onClose }) {
   ]
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex justify-end">
+    <div className="fixed inset-0 z-[1200] flex justify-end">
       <div className="absolute inset-0 bg-slate-900/25 backdrop-blur-[1px]" onClick={onClose} />
       <aside className="relative z-10 flex h-full w-full max-w-4xl flex-col bg-surface-page shadow-2xl">
         <header className="flex flex-shrink-0 items-start gap-3 border-b border-surface-line bg-white px-5 py-4">

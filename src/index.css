@@ -46,12 +46,21 @@
   }
 }
 
-/* Leaflet paints its own controls; align them with the rest of the surface. */
+/* Leaflet paints its own controls; align them with the rest of the surface.
+ *
+ * `z-index: 0` is load-bearing, not cosmetic. Leaflet gives its panes z-indexes
+ * from 200 (tiles) up to 1000 (controls). The container is positioned but has
+ * no z-index of its own, so it creates NO stacking context and those panes
+ * compete in the root — which is why the map and its tooltips painted straight
+ * over the drill-down drawer. Giving the container a z-index traps them. */
 .leaflet-container {
+  position: relative;
+  z-index: 0;
   background: #DCE7F2;
   border-radius: 12px;
   font-family: Inter, sans-serif;
 }
+
 .leaflet-control-zoom a {
   border-radius: 6px !important;
   color: #1D1D1F !important;
