@@ -31,6 +31,7 @@ const COLUMNS = [
 
 const PAGE = 25
 
+
 /**
  * MOM 6.12 — "Must expose all underlying data, not a subset. Data clarity to be
  * strong — clear labels and definitions."
@@ -69,6 +70,7 @@ export default function OnDemandDashboard({ rows: allRows, onDrill }) {
   const [sort, setSort] = useState({ key: 'responseId', dir: 'asc' })
   const [page, setPage] = useState(1)
   const [showDefs, setShowDefs] = useState(false)
+  const [openRow, setOpenRow] = useState(null)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -144,13 +146,18 @@ export default function OnDemandDashboard({ rows: allRows, onDrill }) {
           {[
             { label: 'Responses', value: rows.length.toLocaleString('en-IN') },
             { label: 'NPS', value: npsOf(rows) >= 0 ? `+${npsOf(rows)}` : npsOf(rows), color: npsColor(npsOf(rows)) },
-            { label: 'Promoters', value: `${dist.promoters}%`, color: SEGMENT.promoter },
-            { label: 'Detractors', value: `${dist.detractors}%`, color: SEGMENT.detractor },
+            { label: 'Promoters', value: `${dist.promoters}%`, color: SEGMENT.promoter, seg: 'promoter' },
+            { label: 'Detractors', value: `${dist.detractors}%`, color: SEGMENT.detractor, seg: 'detractor' },
           ].map((m) => (
-            <div key={m.label} className="rounded-xl bg-surface-alt px-3.5 py-3">
+            <button
+              key={m.label}
+              type="button"
+              onClick={() => m.seg ? onDrill?.('segment', m.seg) : onDrill?.(null, null, rows)}
+              className="rounded-xl bg-surface-alt px-3.5 py-3 text-left transition-colors hover:bg-brand-tint"
+            >
               <p className="text-xl font-bold leading-none" style={{ color: m.color || '#1D1D1F' }}>{m.value}</p>
               <p className="mt-1 text-[11px] text-ink-faint">{m.label}</p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -226,14 +233,17 @@ export default function OnDemandDashboard({ rows: allRows, onDrill }) {
       </div>
 
       {/* MOM 6.11 — the progression table lives here so users can play with it */}
-      <LoanDistribution stages={loanDistribution(rows)} />
+      <LoanDistribution
+        stages={loanDistribution(rows)}
+        onDrill={() => onDrill?.(null, null, rows)}
+      />
 
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="card-title">On-Demand Dashboard</p>
             <p className="card-sub">
-              Every field behind the dashboard — {rows.length.toLocaleString('en-IN')} responses, {COLUMNS.length} columns, nothing aggregated away
+              Every field behind the dashboard — {rows.length.toLocaleString('en-IN')} responses, {COLUMNS.length} columns · click a row for its full record
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -292,7 +302,12 @@ export default function OnDemandDashboard({ rows: allRows, onDrill }) {
             </thead>
             <tbody>
               {slice.map((r) => (
-                <tr key={r.responseId} className="border-b border-surface-line/60 hover:bg-surface-alt">
+                <>
+                <tr
+                  key={r.responseId}
+                  onClick={() => setOpenRow(openRow === r.responseId ? null : r.responseId)}
+                  className="cursor-pointer border-b border-surface-line/60 hover:bg-surface-alt"
+                >
                   {COLUMNS.map((c) => (
                     <td
                       key={c.key}
@@ -305,6 +320,31 @@ export default function OnDemandDashboard({ rows: allRows, onDrill }) {
                     </td>
                   ))}
                 </tr>
+                {openRow === r.responseId && (
+                  <tr key={`${r.responseId}-x`} className="border-b border-surface-line/60 bg-surface-alt">
+                    <td colSpan={COLUMNS.length} className="px-4 py-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+                        Full record · {r.responseId}
+                      </p>
+                      <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 lg:grid-cols-4">
+                        {COLUMNS.map((c) => (
+                          <p key={c.key} className="text-[11px] leading-snug">
+                            <span className="text-ink-faint">{c.label}: </span>
+                            <span className="font-medium text-ink-soft">
+                              {c.fmt ? c.fmt(r[c.key]) : (r[c.key] === '' || r[c.key] == null ? '—' : String(r[c.key]))}
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                      {r.improvement && (
+                        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-[12px] italic text-ink-soft ring-1 ring-surface-line">
+                          “{r.improvement}”
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>

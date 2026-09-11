@@ -195,13 +195,18 @@ export default function App() {
         {tab === 'odd' && (
           <OnDemandDashboard
             rows={rows}
-            onDrill={(key, value) =>
+            onDrill={(key, value, explicitRows) => {
+              if (explicitRows) {
+                const ids = new Set(explicitRows.map((r) => r.responseId))
+                openDrill('Current selection', `On-Demand Dashboard · ${scopeLine}`, (r) => ids.has(r.responseId))
+                return
+              }
               openDrill(
                 key === 'journey' ? journeyLabel(value) : value,
                 `Grouped by ${key} · ${scopeLine}`,
                 (r) => String(r[key] ?? '—') === value,
               )
-            }
+            }}
           />
         )}
 
