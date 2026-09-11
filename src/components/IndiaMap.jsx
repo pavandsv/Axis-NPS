@@ -15,7 +15,7 @@ const INDIA_BOUNDS = L.latLngBounds([6.5, 68], [36, 97.5])
  * GeoJSON polygons only, no tile layer: nothing is fetched from a third party
  * at runtime and the map works offline.
  */
-export default function IndiaMap({ role, geo }) {
+export default function IndiaMap({ role, geo, onDrill }) {
   const host = useRef(null)
   const map = useRef(null)
   const [metric, setMetric] = useState('nps')
@@ -68,6 +68,7 @@ export default function IndiaMap({ role, geo }) {
             lyr.on('click', () => {
               setSelected(name)
               map.current.fitBounds(lyr.getBounds(), { padding: [24, 24] })
+              onDrill?.(name)
             })
           },
         }).addTo(m)
@@ -80,7 +81,10 @@ export default function IndiaMap({ role, geo }) {
               fillOpacity: 0.9,
               color: '#FFFFFF',
               weight: 1.5,
-            }).bindTooltip(`${c.city} — NPS ${c.nps >= 0 ? '+' : ''}${c.nps} · ${c.responses} responses`).addTo(m),
+            })
+              .bindTooltip(`${c.city} — NPS ${c.nps >= 0 ? '+' : ''}${c.nps} · ${c.responses} responses`)
+              .on('click', () => onDrill?.(detail.state, c.city))
+              .addTo(m),
           )
         }
       })
@@ -90,7 +94,7 @@ export default function IndiaMap({ role, geo }) {
       if (layer && map.current) map.current.removeLayer(layer)
       markers.forEach((mk) => map.current && map.current.removeLayer(mk))
     }
-  }, [role, metric, selected, geo])
+  }, [role, metric, selected, geo, onDrill])
 
   const reset = () => {
     setSelected(null)
@@ -103,6 +107,9 @@ export default function IndiaMap({ role, geo }) {
         <div>
           <p className="card-title">Geographic Response Distribution</p>
           <p className="card-sub">Click a state to drill into its cities and product mix</p>
+          <p className="mt-1 text-[10px] font-medium text-brand">
+            ✣ Click the map, a state, a city or a product to read those responses
+          </p>
         </div>
         <div className="flex items-center gap-1.5">
           {[['nps', 'NPS Score'], ['responses', 'Response Volume']].map(([k, label]) => (
@@ -134,7 +141,7 @@ export default function IndiaMap({ role, geo }) {
             <button
               key={s.state}
               type="button"
-              onClick={() => setSelected(s.state)}
+              onClick={() => { setSelected(s.state); onDrill?.(s.state) }}
               className={`flex w-full items-center gap-2 border-b border-surface-line py-2 text-left last:border-0 hover:bg-surface-alt ${
                 selected === s.state ? 'bg-brand-tint' : ''
               }`}
@@ -164,20 +171,30 @@ export default function IndiaMap({ role, geo }) {
 
               <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Cities</p>
               {detail.cities.map((c) => (
-                <div key={c.city} className="mt-1.5 flex items-center gap-2 text-[11px]">
-                  <span className="min-w-0 flex-1 truncate text-ink-soft">{c.city}</span>
+                <button
+                  key={c.city}
+                  type="button"
+                  onClick={() => onDrill?.(detail.state, c.city)}
+                  className="mt-1.5 flex w-full items-center gap-2 rounded px-1 py-0.5 text-[11px] transition-colors hover:bg-surface-alt"
+                >
+                  <span className="min-w-0 flex-1 truncate text-left text-ink-soft">{c.city}</span>
                   <span className="text-ink-faint">{c.responses}</span>
                   <span className="w-8 text-right font-bold" style={{ color: npsColor(c.nps) }}>
                     {c.nps >= 0 ? '+' : ''}{c.nps}
                   </span>
-                </div>
+                </button>
               ))}
 
               <p className="mt-4 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
                 Response by product
               </p>
               {detail.byProduct.map((p, i) => (
-                <div key={p.loanType} className="mt-1.5">
+                <button
+                  key={p.loanType}
+                  type="button"
+                  onClick={() => onDrill?.(detail.state, null, p.loanType)}
+                  className="mt-1.5 block w-full text-left"
+                >
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
                     <span className="min-w-0 flex-1 truncate text-ink-soft">{p.loanType}</span>
@@ -195,7 +212,7 @@ export default function IndiaMap({ role, geo }) {
                       }}
                     />
                   </span>
-                </div>
+                </button>
               ))}
             </>
           ) : (

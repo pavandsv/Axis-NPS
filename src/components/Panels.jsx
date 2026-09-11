@@ -4,11 +4,11 @@ import { CATEGORICAL, CHROME, SEGMENT, npsColor } from '../theme/palette'
 const npsChip = (n) => (n >= 0 ? `+${n}` : `${n}`)
 
 /** NPS distribution — the definition of the score. */
-export function NpsDistribution({ dist }) {
+export function NpsDistribution({ dist, onDrill }) {
   const parts = [
-    { label: 'Promoters', value: dist.promoters, count: dist.counts.promoters, color: SEGMENT.promoter },
-    { label: 'Passives', value: dist.passives, count: dist.counts.passives, color: SEGMENT.passive },
-    { label: 'Detractors', value: dist.detractors, count: dist.counts.detractors, color: SEGMENT.detractor },
+    { label: 'Promoters', seg: 'promoter', value: dist.promoters, count: dist.counts.promoters, color: SEGMENT.promoter },
+    { label: 'Passives', seg: 'passive', value: dist.passives, count: dist.counts.passives, color: SEGMENT.passive },
+    { label: 'Detractors', seg: 'detractor', value: dist.detractors, count: dist.counts.detractors, color: SEGMENT.detractor },
   ]
   return (
     <div className="card p-5">
@@ -23,13 +23,19 @@ export function NpsDistribution({ dist }) {
         }}
         options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }}
       />
-      <div className="mt-4 grid grid-cols-3 text-center">
+      <p className="mt-3 text-center text-[10px] font-medium text-brand">✣ Click a segment to read those responses</p>
+      <div className="mt-2 grid grid-cols-3 text-center">
         {parts.map((p) => (
-          <div key={p.label}>
+          <button
+            key={p.label}
+            type="button"
+            onClick={() => onDrill?.(p.seg, p.label)}
+            className="rounded-lg py-1 transition-colors hover:bg-surface-alt"
+          >
             <p className="text-lg font-bold" style={{ color: p.color }}>{p.value}%</p>
             <p className="text-[11px] text-ink-faint">{p.label}</p>
             <p className="text-[10px] text-ink-faint">{p.count.toLocaleString('en-IN')}</p>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -92,18 +98,24 @@ export function JourneyScores({ scores, journey, onJourney, trend }) {
 }
 
 /** MOM 6.2 — Sent, Delivered, Clicked. SMS removed from scope entirely. */
-export function ChannelPerformance({ channels }) {
+export function ChannelPerformance({ channels, onDrill }) {
   return (
     <div className="card p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="card-title">Channel Performance</p>
           <p className="card-sub">Sent · Delivered · Clicked — SMS out of scope</p>
+          <p className="mt-1 text-[10px] font-medium text-brand">✣ Click a channel to read its responses</p>
         </div>
       </div>
       <div className="mt-4 space-y-3">
         {channels.map((c) => (
-          <div key={c.key} className="rounded-xl border border-surface-line p-3.5">
+          <button
+            key={c.key}
+            type="button"
+            onClick={() => onDrill?.(c.key)}
+            className="w-full rounded-xl border border-surface-line p-3.5 text-left transition-colors hover:border-brand/40 hover:bg-surface-alt"
+          >
             <div className="flex items-center gap-3">
               <span className="min-w-0 flex-1">
                 <span className="block text-[13px] font-semibold text-ink">{c.label}</span>
@@ -127,7 +139,7 @@ export function ChannelPerformance({ channels }) {
               <span style={{ width: `${c.clickedPct}%`, background: c.color }} />
               <span style={{ width: `${c.deliveredPct - c.clickedPct}%`, background: `${c.color}55` }} />
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -135,14 +147,15 @@ export function ChannelPerformance({ channels }) {
 }
 
 /** MOM 6.5 — loan type performance shown percent-wise, with NPS. */
-export function LoanTypePerformance({ rows }) {
+export function LoanTypePerformance({ rows, onDrill }) {
   return (
     <div className="card p-5">
       <p className="card-title">Loan Type Performance</p>
       <p className="card-sub">Share of responses and NPS by product</p>
+      <p className="mt-1 text-[10px] font-medium text-brand">✣ Click a product to drill in</p>
       <div className="mt-4 space-y-3.5">
         {rows.map((l, i) => (
-          <div key={l.label}>
+          <button key={l.label} type="button" onClick={() => onDrill?.(l.label)} className="block w-full text-left">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: CATEGORICAL[i % CATEGORICAL.length] }} />
               <span className="text-[12px] font-medium text-ink-soft">{l.label}</span>
@@ -154,7 +167,7 @@ export function LoanTypePerformance({ rows }) {
               </span>
               <span className="w-16 text-right text-[10px] text-ink-faint">{l.pct}% · {l.responses}</span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -162,7 +175,7 @@ export function LoanTypePerformance({ rows }) {
 }
 
 /** MOM 6.4 — portfolio replaces the age-group panel, keeping the NPS linkage. */
-export function PortfolioPerformance({ rows }) {
+export function PortfolioPerformance({ rows, onDrill }) {
   return (
     <div className="card p-5">
       <p className="card-title">Portfolio — NPS</p>
@@ -189,12 +202,17 @@ export function PortfolioPerformance({ rows }) {
       />
       <div className="mt-3 space-y-1.5">
         {rows.map((r) => (
-          <div key={r.label} className="flex items-center gap-2 text-[11px]">
+          <button
+            key={r.label}
+            type="button"
+            onClick={() => onDrill?.(r.label)}
+            className="flex w-full items-center gap-2 rounded-lg px-1 py-0.5 text-[11px] transition-colors hover:bg-surface-alt"
+          >
             <span className="text-ink-soft">{r.label}</span>
             <span className="text-ink-faint">{r.loanTypes.join(' · ')}</span>
             <span className="ml-auto font-semibold text-ink">{r.pct}%</span>
             <span className="w-12 text-right font-bold" style={{ color: npsColor(r.nps) }}>{npsChip(r.nps)}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -202,7 +220,7 @@ export function PortfolioPerformance({ rows }) {
 }
 
 /** MOM 6.7 / 6.8 — top 5 recommendations, not four. */
-export function ThemePanel({ title, sub, rows, tone }) {
+export function ThemePanel({ title, sub, rows, tone, onDrill }) {
   const color = tone === 'good' ? SEGMENT.promoter : SEGMENT.detractor
   return (
     <div className="card p-5">
@@ -215,7 +233,7 @@ export function ThemePanel({ title, sub, rows, tone }) {
       </div>
       <div className="mt-4 space-y-3.5">
         {rows.map((r, i) => (
-          <div key={r.name}>
+          <button key={r.name} type="button" onClick={() => onDrill?.(r.name)} className="block w-full text-left">
             <div className="flex items-center gap-2">
               <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[9px] font-bold"
                     style={{ background: `${color}22`, color }}>
@@ -230,7 +248,7 @@ export function ThemePanel({ title, sub, rows, tone }) {
               </span>
               <span className="w-20 text-right text-[10px] text-ink-faint">{r.mentions} mentions</span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -238,7 +256,7 @@ export function ThemePanel({ title, sub, rows, tone }) {
 }
 
 /** MOM 6.11 — of 100 customers who took a loan, how many progressed. */
-export function LoanDistribution({ stages }) {
+export function LoanDistribution({ stages, onDrill }) {
   return (
     <div className="card overflow-hidden">
       <div className="p-5 pb-3">
@@ -256,7 +274,11 @@ export function LoanDistribution({ stages }) {
           </thead>
           <tbody>
             {stages.map((s, i) => (
-              <tr key={s.stage} className="border-b border-surface-line/70">
+              <tr
+                key={s.stage}
+                onClick={() => onDrill?.(s.stage)}
+                className="cursor-pointer border-b border-surface-line/70 transition-colors hover:bg-surface-alt"
+              >
                 <td className="whitespace-nowrap px-5 py-3 text-[12px] font-semibold text-ink">{s.stage}</td>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-2">

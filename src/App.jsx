@@ -3,11 +3,13 @@ import Login from './components/Login'
 import Header from './components/Header'
 import KpiRow from './components/KpiRow'
 import PeriodSlicer from './components/PeriodSlicer'
-import WordCloud from './components/WordCloud'
 import IndiaMap from './components/IndiaMap'
 import BotCallQueue from './components/BotCallQueue'
 import OnDemandDashboard from './components/OnDemandDashboard'
 import AiInsights from './components/AiInsights'
+import ResponseDrawer from './components/ResponseDrawer'
+import SentimentCloud from './components/SentimentCloud'
+import { journeyLabel } from './data/config'
 import {
   NpsDistribution, JourneyScores, ChannelPerformance,
   LoanTypePerformance, PortfolioPerformance, ThemePanel, LoanDistribution,
@@ -22,6 +24,7 @@ export default function App() {
   const [bucket, setBucket] = useState('all')
   const [tab, setTab] = useState('dashboard')
   const [aiItems, setAiItems] = useState([])
+  const [drill, setDrill] = useState(null)
 
   const role = roleKey ? ROLES[roleKey] : null
 
@@ -36,6 +39,12 @@ export default function App() {
   const dist = useMemo(() => A.distribution(rows), [rows])
   const scores = useMemo(() => (role ? A.journeyScores(role, { period, bucket }) : []), [role, period, bucket])
   const trend = useMemo(() => A.trend(rows, period), [rows, period])
+  const scopeLine = `${journey === 'all' ? 'All journeys' : journeyLabel(journey)} · ${bucket === 'all' ? 'all periods' : bucket}`
+
+  // One entry point for every drill-down, so each panel only has to say WHAT it
+  // wants and never how the drawer works.
+  const openDrill = (title, subtitle, predicate) =>
+    setDrill({ title, subtitle, rows: rows.filter(predicate) })
 
   if (!role) return <Login onSignIn={setRoleKey} />
 
@@ -81,19 +90,48 @@ export default function App() {
       <main className="mx-auto max-w-[1600px] space-y-4 p-5">
         {tab === 'dashboard' && (
           <>
-            <KpiRow k={k} dist={dist} />
+            <KpiRow
+              k={k}
+              dist={dist}
+              onDrill={(which) => {
+                if (which === 'detractors') openDrill('Detractor cases', 'Routed to the AI bot-calling activity', (r) => r.segment === 'detractor')
+                else if (which === 'clicked') openDrill('Clicked through', 'Customers who opened the survey link', (r) => r.clicked)
+                else openDrill('All responses', scopeLine, () => true)
+              }}
+            />
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <NpsDistribution dist={dist} />
+              <NpsDistribution
+                dist={dist}
+                onDrill={(seg, label) => openDrill(label, `Rating band · ${scopeLine}`, (r) => r.segment === seg)}
+              />
               <JourneyScores scores={scores} journey={journey} onJourney={setJourney} trend={trend} />
             </div>
 
-            <WordCloud rows={rows} />
+            <SentimentCloud
+              rows={rows}
+              onDrill={(w) =>
+                openDrill(
+                  `“${w.text}”`,
+                  `${w.value} mentions · ${w.sentiment.toLowerCase()} feedback`,
+                  (r) => r.sentiment === w.sentiment && new RegExp(`\\b${w.text}\\b`, 'i').test(r.improvement || ''),
+                )
+              }
+            />
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <ChannelPerformance channels={A.channelPerformance(rows)} />
-              <LoanTypePerformance rows={A.loanTypePerformance(rows)} />
-              <PortfolioPerformance rows={A.portfolioPerformance(rows)} />
+              <ChannelPerformance
+                channels={A.channelPerformance(rows)}
+                onDrill={(ch) => openDrill(`${ch} responses`, `Survey channel · ${scopeLine}`, (r) => r.channel === ch)}
+              />
+              <LoanTypePerformance
+                rows={A.loanTypePerformance(rows)}
+                onDrill={(t) => openDrill(t, `Loan type · ${scopeLine}`, (r) => r.loanType === t)}
+              />
+              <PortfolioPerformance
+                rows={A.portfolioPerformance(rows)}
+                onDrill={(pf) => openDrill(pf, `Portfolio · ${scopeLine}`, (r) => r.portfolio === pf)}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -102,12 +140,14 @@ export default function App() {
                 sub="Top 5 themes from promoter comments"
                 rows={A.themes(rows, 'promoter', 5)}
                 tone="good"
+                onDrill={(t) => openDrill(t, 'Promoters who raised this', (r) => r.theme === t && r.segment === 'promoter')}
               />
               <ThemePanel
                 title="Needs Improvement"
                 sub="Top 5 themes from detractor comments"
                 rows={A.themes(rows, 'detractor', 5)}
                 tone="bad"
+                onDrill={(t) => openDrill(t, 'Detractors who raised this', (r) => r.theme === t && r.segment === 'detractor')}
               />
             </div>
 
@@ -123,8 +163,19 @@ export default function App() {
               </div>
             )}
 
-            <IndiaMap role={role} geo={A.geography(rows)} />
-            <LoanDistribution stages={A.loanDistribution(rows)} />
+            <IndiaMap
+              role={role}
+              geo={A.geography(rows)}
+              onDrill={(state, city, product) => {
+                if (product) openDrill(`${product} · ${state}`, 'Product within state', (r) => r.state === state && r.loanType === product)
+                else if (city) openDrill(`${city}, ${state}`, 'City drill-down', (r) => r.state === state && r.city === city)
+                else openDrill(state, `State drill-down · ${scopeLine}`, (r) => r.state === state)
+              }}
+            />
+            <LoanDistribution
+              stages={A.loanDistribution(rows)}
+              onDrill={(stage) => openDrill(stage, 'Customers reaching this stage', () => true)}
+            />
             <BotCallQueue queue={A.botCallQueue(rows)} k={k} />
           </>
         )}
@@ -140,6 +191,15 @@ export default function App() {
           />
         )}
       </main>
+
+      {drill && (
+        <ResponseDrawer
+          title={drill.title}
+          subtitle={drill.subtitle}
+          rows={drill.rows}
+          onClose={() => setDrill(null)}
+        />
+      )}
 
       <footer className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-5 py-6 text-[11px] text-ink-faint">
         <span>Axis Finance Limited · NPS 360 · Survey + AI Analytics</span>
