@@ -6,6 +6,7 @@ import PeriodSlicer from './components/PeriodSlicer'
 import IndiaMap from './components/IndiaMap'
 import BotCallQueue from './components/BotCallQueue'
 import OnDemandDashboard from './components/OnDemandDashboard'
+import PromptDashboard from './components/PromptDashboard'
 import AiInsights from './components/AiInsights'
 import ResponseDrawer from './components/ResponseDrawer'
 import SentimentCloud from './components/SentimentCloud'
@@ -35,7 +36,7 @@ export default function App() {
   )
   const allRows = useMemo(() => (role ? A.filterResponses(role, {}) : []), [role])
 
-  const k = useMemo(() => A.headline(rows, allRows), [rows, allRows])
+  const k = useMemo(() => A.headline(rows, allRows, { journey, period, bucket }), [rows, allRows, journey, period, bucket])
   const dist = useMemo(() => A.distribution(rows), [rows])
   const scores = useMemo(() => (role ? A.journeyScores(role, { period, bucket }) : []), [role, period, bucket])
   const trend = useMemo(() => A.trend(rows, period), [rows, period])
@@ -63,7 +64,8 @@ export default function App() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-1 px-5">
           {[
             ['dashboard', 'Dashboard'],
-            ['odd', 'On-Demand Dashboard'],
+            ['odd', '✦ On-Demand Dashboard'],
+            ['data', 'All Data'],
             ...(role.ai ? [['ai', '✦ AI Insights']] : []),
           ].map(([key, label]) => (
             <button
@@ -133,7 +135,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <ChannelPerformance
-                channels={A.channelPerformance(rows)}
+                channels={A.channelPerformance(rows, { journey, period, bucket })}
                 onDrill={(ch) => openDrill(`${ch} responses`, `Survey channel · ${scopeLine}`, (r) => r.channel === ch)}
               />
               <LoanTypePerformance
@@ -193,6 +195,21 @@ export default function App() {
         )}
 
         {tab === 'odd' && (
+          <PromptDashboard
+            rows={rows}
+            onDrill={(key, value, extra) =>
+              openDrill(
+                key === 'journey' ? journeyLabel(value) : String(value),
+                `On-Demand · grouped by ${key}`,
+                (r) =>
+                  String(r[key] ?? '—') === String(value) &&
+                  Object.entries(extra || {}).every(([k, v]) => r[k] === v),
+              )
+            }
+          />
+        )}
+
+        {tab === 'data' && (
           <OnDemandDashboard
             rows={rows}
             onDrill={(key, value, explicitRows) => {

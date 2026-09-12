@@ -31,12 +31,25 @@ export default function ResponseDrawer({ title, subtitle, rows, onClose }) {
   const current = Math.min(page, pages)
   const slice = filtered.slice((current - 1) * PAGE, current * PAGE)
 
+  // A slice containing one segment has an NPS of exactly +100 or −100 by
+  // definition — true, but it tells the reader nothing and looks like a bug.
+  // Report the average rating instead, which is meaningful either way.
+  const segmentsPresent = ['promoter', 'passive', 'detractor']
+    .filter((sg) => dist.counts[`${sg}s`] > 0).length
+  const mixed = segmentsPresent > 1
+  const avgRating = rows.length
+    ? +(rows.reduce((a, r) => a + r.rating, 0) / rows.length).toFixed(1)
+    : 0
+  const withComment = rows.filter((r) => r.improvement).length
+
   const kpis = [
     { label: 'Responses', value: rows.length.toLocaleString('en-IN') },
-    { label: 'NPS', value: npsOf(rows) >= 0 ? `+${npsOf(rows)}` : npsOf(rows), color: npsColor(npsOf(rows)) },
-    { label: 'Promoters', value: `${dist.promoters}%`, color: SEGMENT.promoter },
-    { label: 'Detractors', value: `${dist.detractors}%`, color: SEGMENT.detractor },
-  ]
+    mixed
+      ? { label: 'NPS', value: npsOf(rows) >= 0 ? `+${npsOf(rows)}` : npsOf(rows), color: npsColor(npsOf(rows)) }
+      : { label: 'Avg rating', value: `${avgRating} / 10`, hint: 'NPS is not meaningful for a single segment' },
+    { label: 'Avg rating', value: `${avgRating} / 10` },
+    { label: 'Left a comment', value: `${Math.round((withComment / (rows.length || 1)) * 100)}%` },
+  ].filter((kpi, i, arr) => arr.findIndex((x) => x.label === kpi.label) === i)
 
   return createPortal(
     <div className="fixed inset-0 z-[1200] flex justify-end">
@@ -62,6 +75,7 @@ export default function ResponseDrawer({ title, subtitle, rows, onClose }) {
               <div key={k.label} className="card px-3.5 py-3">
                 <p className="text-lg font-bold leading-none" style={{ color: k.color || '#1D1D1F' }}>{k.value}</p>
                 <p className="mt-1 text-[11px] text-ink-faint">{k.label}</p>
+                {k.hint && <p className="mt-0.5 text-[10px] leading-tight text-ink-faint">{k.hint}</p>}
               </div>
             ))}
           </div>
@@ -75,12 +89,17 @@ export default function ResponseDrawer({ title, subtitle, rows, onClose }) {
               ))}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-faint">
-              {['promoter', 'passive', 'detractor'].map((s) => (
-                <span key={s} className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ background: SEGMENT[s] }} />
-                  {s}s {dist[`${s}s`]}% · {dist.counts[`${s}s`]}
-                </span>
-              ))}
+              {['promoter', 'passive', 'detractor']
+                .filter((sg) => dist.counts[`${sg}s`] > 0)
+                .map((sg) => (
+                  <span key={sg} className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ background: SEGMENT[sg] }} />
+                    {sg}s {dist[`${sg}s`]}% · {dist.counts[`${sg}s`].toLocaleString('en-IN')}
+                  </span>
+                ))}
+              {!mixed && (
+                <span className="text-ink-faint">Single segment — NPS not shown</span>
+              )}
             </div>
           </div>
 

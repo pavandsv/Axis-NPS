@@ -163,10 +163,22 @@ for (const [journey, share, journeyNps] of JOURNEY_MIX) {
       const month = monthBag[n % monthBag.length]
       const channel = channelBag[n % channelBag.length]
 
-      // MOM 6.2 — the funnel the channel panel reports. Every response implies a
-      // delivered and clicked survey; non-responders are counted separately.
+      // MOM 6.2 — a response implies its survey was delivered and clicked.
+      // Non-responders live in the dispatch log, not here.
       const delivered = rnd() > 0.04
       const clicked = delivered && rnd() > 0.02
+
+      // MOM 3 — every detractor enters the bot-calling activity. SLA is 48
+      // hours, so resolution beyond 2 days is a breach. Both are recorded per
+      // case; the dashboard measures them instead of assuming a rate.
+      const isDetractor = segment === 'detractor'
+      // Most cases close well inside the 48-hour SLA; a minority run long. A
+      // single wide distribution put ~38% over the line, which is not a service
+      // desk anyone would ship.
+      const resolutionDays = isDetractor
+        ? +(rnd() < 0.88 ? 0.3 + rnd() * 1.5 : 2.2 + rnd() * 5).toFixed(1)
+        : null
+      const slaBreached = isDetractor ? resolutionDays > 2 : null
 
       rows.push({
         responseId: `AFL-NPS-${String(n + 1).padStart(6, '0')}`,
@@ -193,6 +205,8 @@ for (const [journey, share, journeyNps] of JOURNEY_MIX) {
         channel,
         delivered,
         clicked,
+        resolutionDays,
+        slaBreached,
         gender: genderBag[n % genderBag.length],
         ageBracket: ageBag[n % ageBag.length],
 

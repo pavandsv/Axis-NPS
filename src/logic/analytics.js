@@ -8,6 +8,7 @@
 // and the On-Demand Dashboard (MOM 6.12) work at all.
 // ---------------------------------------------------------------------------
 import { RESPONSES } from '../data/generated/responses.js'
+import { DISPATCH } from '../data/generated/dispatch.js'
 import { CHANNELS, JOURNEY_KEYS, LOAN_TYPES, PORTFOLIOS, journeyLabel } from '../data/config.js'
 import { inScope } from '../data/roles.js'
 
@@ -47,28 +48,56 @@ export function distribution(rows) {
 }
 
 /** MOM 6.1 — every widget carries its own NPS. */
-export function headline(rows, allRows) {
+/**
+ * Headline figures for the current slice.
+ *
+ * Every one is measured. The previous version derived "sent" from the response
+ * count and then divided the two, which pinned the response rate at exactly
+ * 31% no matter what was filtered; SLA compliance was likewise fixed at 91%.
+ * Sent counts now come from the dispatch log and SLA from each detractor's own
+ * bot-call record, so both move when the selection moves.
+ */
+export function headline(rows, allRows, filter = {}) {
   const responded = rows.length
-  const sent = Math.round(responded / 0.31) || 0
+
+  // Match the dispatch log to the same slice the responses were filtered to.
+  // Only dimensions the log carries can narrow it — a state filter cannot,
+  // since surveys are logged per journey, channel and month.
+  const cells = DISPATCH.filter(
+    (d) =>
+      (!filter.journey || filter.journey === 'all' || d.journey === filter.journey) &&
+      (!filter.bucket || filter.bucket === 'all' || filter.period !== 'monthly' || d.month === filter.bucket),
+  )
+  // When a filter the log cannot see is active (state, product), scale the
+  // dispatch down by the share of responses it covers, so the rate stays honest.
+  const covered = cells.reduce((a, d) => a + d.responses, 0)
+  const scale = covered ? Math.min(1, responded / covered) : 0
+  const sent = Math.round(cells.reduce((a, d) => a + d.sent, 0) * scale)
+  const delivered = Math.round(cells.reduce((a, d) => a + d.delivered, 0) * scale)
+  const clicked = Math.round(cells.reduce((a, d) => a + d.clicked, 0) * scale)
+
   const detractors = rows.filter((r) => r.segment === 'detractor')
-  const breached = Math.round(detractors.length * 0.09)
+  const breached = detractors.filter((r) => r.slaBreached).length
+  const resolutions = detractors.map((r) => r.resolutionDays).filter((v) => v != null)
+
   return {
     nps: npsOf(rows),
-    // Per-widget NPS: the score of the slice each card counts, not a repeat of
-    // the headline. The detractor card reports the points detractors cost,
-    // since the NPS of a detractor-only population is -100 by definition.
     npsClicked: npsOf(rows.filter((r) => r.clicked)),
     npsDelivered: npsOf(rows.filter((r) => r.delivered)),
     npsCost: share(detractors.length, rows.length),
     responses: responded,
-    responseRate: share(responded, sent),
     sent,
-    delivered: rows.filter((r) => r.delivered).length,
-    clicked: rows.filter((r) => r.clicked).length,
+    delivered,
+    clicked,
+    responseRate: share(responded, sent),
+    deliveredRate: share(delivered, sent),
+    clickedRate: share(clicked, sent),
     slaCompliance: detractors.length ? 100 - share(breached, detractors.length) : 100,
     breached,
     detractorCases: detractors.length,
-    avgResolution: 1.8,
+    avgResolution: resolutions.length
+      ? +(resolutions.reduce((a, b) => a + b, 0) / resolutions.length).toFixed(1)
+      : 0,
     shareOfBook: share(responded, allRows.length),
   }
 }
@@ -96,12 +125,20 @@ export function journeyScores(role, opts = {}) {
 }
 
 /** MOM 6.2 — Sent, Delivered, Clicked per channel. SMS is out of scope. */
-export function channelPerformance(rows) {
+export function channelPerformance(rows, filter = {}) {
   return CHANNELS.map((c) => {
     const slice = rows.filter((r) => r.channel === c.key)
-    const sent = Math.round(slice.length / 0.31) || 0
-    const delivered = Math.round(sent * 0.96)
-    const clicked = Math.round(sent * 0.43)
+    const cells = DISPATCH.filter(
+      (d) =>
+        d.channel === c.key &&
+        (!filter.journey || filter.journey === 'all' || d.journey === filter.journey) &&
+        (!filter.bucket || filter.bucket === 'all' || filter.period !== 'monthly' || d.month === filter.bucket),
+    )
+    const covered = cells.reduce((a, d) => a + d.responses, 0)
+    const scale = covered ? Math.min(1, slice.length / covered) : 0
+    const sent = Math.round(cells.reduce((a, d) => a + d.sent, 0) * scale)
+    const delivered = Math.round(cells.reduce((a, d) => a + d.delivered, 0) * scale)
+    const clicked = Math.round(cells.reduce((a, d) => a + d.clicked, 0) * scale)
     return {
       ...c,
       sent,
