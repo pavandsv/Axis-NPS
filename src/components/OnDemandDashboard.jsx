@@ -27,6 +27,12 @@ const COLUMNS = [
   { key: 'ageBracket', label: 'Age bracket', hint: 'From the customer record — off the dashboard per MOM 6.4' },
   { key: 'month', label: 'Month', hint: 'Slicer bucket' },
   { key: 'quarter', label: 'Quarter', hint: 'Slicer bucket' },
+  { key: 'resolutionDays', label: 'Resolution (days)',
+    hint: 'Detractors only — how long the bot-calling case took to close',
+    fmt: (v) => (v == null ? '—' : `${v}d`) },
+  { key: 'slaBreached', label: 'SLA breached',
+    hint: 'Detractors only — true when the case ran past the 48-hour SLA',
+    fmt: (v) => (v == null ? '—' : v ? 'Yes' : 'No') },
 ]
 
 const PAGE = 25
